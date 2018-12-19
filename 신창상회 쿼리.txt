@@ -1,3 +1,6 @@
+CREATE DATABASE scsh;
+USE scsh;
+
 #자리 테이블
 CREATE TABLE seats
 (
@@ -8,22 +11,29 @@ CREATE TABLE seats
 );
 
 # 기본 자리 (12석) 세팅
-INSERT INTO seats VALUES ('1','1',NULL);
-INSERT INTO seats VALUES ('2','2',NULL);
-INSERT INTO seats VALUES ('3','3',NULL);
-INSERT INTO seats VALUES ('4','4',NULL);
-INSERT INTO seats VALUES ('5','5',NULL);
-INSERT INTO seats VALUES ('6','6',NULL);
-INSERT INTO seats VALUES ('7','7',NULL);
-INSERT INTO seats VALUES ('8','8',NULL);
-INSERT INTO seats VALUES ('9','9',NULL);
-INSERT INTO seats VALUES ('10','10',NULL);
-INSERT INTO seats VALUES ('11','11',NULL);
-INSERT INTO seats VALUES ('12','12',NULL);
-DELETE FROM seats WHERE seat_id > 12;
+INSERT INTO seats VALUES ('1','1','Y',NULL);
+INSERT INTO seats VALUES ('2','2','Y',NULL);
+INSERT INTO seats VALUES ('3','3','Y',NULL);
+INSERT INTO seats VALUES ('4','4','Y',NULL);
+INSERT INTO seats VALUES ('5','5','Y',NULL);
+INSERT INTO seats VALUES ('6','6','Y',NULL);
+INSERT INTO seats VALUES ('7','7','Y',NULL);
+INSERT INTO seats VALUES ('8','8','Y',NULL);
+INSERT INTO seats VALUES ('9','9','Y',NULL);
+INSERT INTO seats VALUES ('10','10','Y',NULL);
+INSERT INTO seats VALUES ('11','11','Y',NULL);
+INSERT INTO seats VALUES ('12','12','Y',NULL);
 
 # 자리 추가 쿼리
 
+#자리 비었는가 확인
+SELECT seat_empty FROM seats WHERE seat_id = 3;
+
+#자리 채움
+UPDATE seats SET seat_empty = 'N' WHERE seat_id =3;
+
+#자리 비움
+UPDATE seats SET seat_empty = 'Y' WHERE seat_id =3;
 
 #메뉴 테이블
 CREATE TABLE menus
@@ -35,18 +45,31 @@ CREATE TABLE menus
 );
 
 #기본 메뉴
-INSERT INTO menus VALUES ('1','삼겹살',7000,0);
-INSERT INTO menus VALUES ('2','항정살',9000,0);
-INSERT INTO menus VALUES ('3','공기밥',1000,0);
-INSERT INTO menus VALUES ('4','양념갈비',8000,0);
-INSERT INTO menus VALUES ('5','참이슬',4500,0);
+INSERT INTO menus VALUES (null,'삼겹살',7000,10);
+INSERT INTO menus VALUES (null,'항정살',9000,10);
+INSERT INTO menus VALUES (null,'양념갈비',8000,10);
+INSERT INTO menus VALUES (null,'참이슬',4500,10);
+INSERT INTO menus VALUES (null,'공기밥',1000,10);
 
 #재고 업데이트 쿼리
 UPDATE menus SET menu_stock = menu_stock - 2
 WHERE menu_name = '삼겹살';
 
+#전체 재고 확인 쿼리
+SELECT menu_name, menu_price, menu_stock
+FROM menus;
+
+#개별 재고 확인 쿼리
+SELECT menu_stock FROM menus
+WHERE menu_name = '양념갈비';
+
 #메뉴 추가 쿼리
-INSERT INTO menus VALUES (NULL,'처음처럼',4500,0);
+INSERT INTO menus VALUES (NULL,'처음처럼',4500,10);
+
+#메뉴 수정 쿼리
+UPDATE menus
+SET menu_name = '숯불갈비', menu_price = 7500
+WHERE menu_name = '양념갈비';
 
 #주문 테이블
 CREATE TABLE orders
@@ -59,12 +82,30 @@ CREATE TABLE orders
 	order_quantity INT
 );
 
-# 주문 추가 쿼리
+# 해당 자리 주문 모두 없애기
+DELETE FROM orders WHERE seat_id = 2;
+
+# 기존에 주문 했던 메뉴인지 확인
+SELECT * FROM orders WHERE seat_id = 2 AND 
+menu_id=(SELECT menu_id FROM menus WHERE menu_name = '양념갈비');
+
+# 기존에 없던 주문 추가 쿼리
 INSERT INTO orders VALUES (2,(SELECT menu_id FROM menus WHERE menu_name = '양념갈비'),1);
 
+# 기존에 있던 주문 수정 쿼리
+UPDATE orders SET order_quantity = order_quantity+1 
+WHERE seat_id = 2 AND menu_id = (SELECT menu_id FROM menus WHERE menu_name = '양념갈비'); 
 
-# 주문 확인 쿼리
-SELECT s.seat_id, m.menu_name, o.order_quantity, 
+# 메뉴 없애는 주문 취소 쿼리
+DELETE FROM orders WHERE seat_id = 2  
+AND menu_id = (SELECT menu_id FROM menus WHERE menu_name = '삼겹살'); 
+
+# 개별 주문 확인 쿼리
+SELECT order_quantity FROM orders
+WHERE seat_id = 2 AND menu_id=(SELECT menu_id FROM menus WHERE menu_name = '삼겹살');
+
+# 전체 주문 확인 쿼리
+SELECT s.seat_id, m.menu_name, o.order_quantity, (SELECT menu_price FROM menus WHERE menu_id = o.menu_id) AS 개별가격,
 ((SELECT menu_price FROM menus WHERE menu_id = o.menu_id)*o.order_quantity) AS 가격
 FROM seats AS s INNER JOIN menus AS m ON s.seat_id = '3' 
 NATURAL JOIN orders AS o;
@@ -90,6 +131,22 @@ INSERT INTO membership_grade VALUES ('3','gold',3,7);
 INSERT INTO membership_grade VALUES ('4','diamond',5,10);
 INSERT INTO membership_grade VALUES ('5','vip',10,10);
 
+#할인률 확인 
+SELECT mg.grade_discount_percent FROM membership_grade AS mg 
+INNER JOIN membership AS m 
+ON m.member_name = '정승민' AND mg.grade_id = m.grade_id;
+
+#적립률 확인 
+SELECT mg.grade_point_percent FROM membership_grade AS mg 
+INNER JOIN membership AS m 
+ON m.member_name = '정승민' AND mg.grade_id = m.grade_id;
+
+#포인트 적립
+UPDATE membership
+SET member_point = member_point + 9000
+WHERE member_name = '정승민';
+
+
 
 #멤버쉽 정보 테이블
 CREATE TABLE membership
@@ -109,8 +166,11 @@ CREATE TABLE membership
 INSERT INTO membership VALUES
 (NULL,'박상경','남성','010-5566-8822','안산',DEFAULT,DEFAULT,DEFAULT);
 
-#멤버쉽 확인 쿼리
-SELECT m.member_name, m.member_phone, m.member_point, mg.grade_name FROM membership AS m INNER JOIN membership_grade AS mg ON m.member_name = '정승민' AND m.grade_id = mg.grade_id;
+
+#멤버쉽 가입 쿼리
+INSERT INTO membership VALUES
+(NULL,'정승민','남성','010-3322-6699','안산',DEFAULT,DEFAULT,DEFAULT);
+
 
 #결제 정보 테이블
 CREATE TABLE payments
@@ -124,12 +184,23 @@ CREATE TABLE payments
 INSERT INTO payments VALUES
 (NULL,80000,'2018-8-20');
 
+DELETE FROM menus WHERE menu_name = '공기밥';
 
 
+# 결제량 업데이트
+UPDATE membership SET member_total_pay = member_total_pay + 100000 WHERE member_name = '김수빈';
 
-
-
-
+# 결제량 업데이트
+UPDATE membership SET grade_id = 
+CASE
+WHEN member_total_pay < 100000 THEN 1
+WHEN member_total_pay >= 100000 AND member_total_pay <200000 THEN 2
+WHEN member_total_pay >= 200000 AND member_total_pay <400000 THEN 3
+WHEN member_total_pay >= 400000 AND member_total_pay <800000 THEN 4
+WHEN member_total_pay >= 800000 THEN 5
+ELSE 1
+END
+WHERE member_name = '김수빈';
 
 
 
